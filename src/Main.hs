@@ -1,6 +1,5 @@
 module Main (main) where
 
-import System.IO
 import Graphics.Gloss.Interface.Pure.Game
 import System.Random (StdGen, newStdGen, randomR)
 
@@ -21,7 +20,7 @@ type Bola = (Float, Float, Float, Float) -- X, Y, vx, vy
 
 type Parede = (Float, Float) -- X, Y
 
-type Score = Int
+type Score = (Int, Int) -- Score, Highest
 
 type Mundo = (Player, Bola, [Parede], Status, Score)
 
@@ -33,15 +32,15 @@ data Status =
   deriving (Eq)
 
 mundoStart :: Mundo
-mundoStart = ((0, 0, 0), (0, 0, 0, 0), [], Start, 0)
+mundoStart = ((0, 0, 0), (0, 0, 0, 0), [], Start, (0, 0))
 
-inicializaMundo :: Mundo
-inicializaMundo =
+inicializaMundo :: Int -> Mundo
+inicializaMundo maxSc =
     (newPlayer,
     bola,
     paredes,
     Playing,
-    0)
+    (0, maxSc))
   where
     newPlayer = (0, -alturaTela/2 + 30, 0)
     bola = (20, 0, -velBola, -velBola)
@@ -53,21 +52,21 @@ tamTitulo = 0.25
 posXTitulo = -350
 posYTitulo = alturaTela / 2 - 100
 
-desenhaTelaVitoria :: Int -> Picture
-desenhaTelaVitoria score =
+desenhaTelaVitoria :: Score -> Picture
+desenhaTelaVitoria (sc, max) =
   Pictures
-    [ Color white $ Translate posXTitulo posYTitulo $ Scale (tamTitulo * 2) (tamTitulo * 2) $ Text "YOU VENCEU!",
-      Color white $ Translate posXTitulo (posYTitulo - 100) $ Scale tamTitulo tamTitulo $ Text ("SEU SCORE: " ++ show score),
-      --Color white $ Translate posXTitulo (posYTitulo - 200) $ Scale tamTitulo tamTitulo $ Text "HIGHEST SCORE: ",
+    [ Color white $ Translate posXTitulo posYTitulo $ Scale (tamTitulo * 2) (tamTitulo * 2) $ Text "VOCE VENCEU!",
+      Color white $ Translate posXTitulo (posYTitulo - 100) $ Scale tamTitulo tamTitulo $ Text ("SEU SCORE: " ++ show sc),
+      Color white $ Translate posXTitulo (posYTitulo - 200) $ Scale tamTitulo tamTitulo $ Text ("HIGHEST SCORE: " ++ show max),
       Color white $ Translate posXTitulo (posYTitulo - 350) $ Scale tamTitulo tamTitulo $ Text "Aperte Espaco para jogar novamente"
     ]
 
-desenhaTelaDerrota :: Int -> Picture
-desenhaTelaDerrota score =
+desenhaTelaDerrota :: Score -> Picture
+desenhaTelaDerrota (sc, max) =
   Pictures
-    [ Color white $ Translate posXTitulo posYTitulo $ Scale (tamTitulo * 2) (tamTitulo * 2) $ Text "VOCÊ PERDEU!",
-      Color white $ Translate posXTitulo (posYTitulo - 100) $ Scale tamTitulo tamTitulo $ Text ("SEU SCORE: " ++ show score),
-      --Color white $ Translate posXTitulo (posYTitulo - 200) $ Scale tamTitulo tamTitulo $ Text "HIGHEST SCORE: ",
+    [ Color white $ Translate posXTitulo posYTitulo $ Scale (tamTitulo * 2) (tamTitulo * 2) $ Text "VOCE PERDEU!",
+      Color white $ Translate posXTitulo (posYTitulo - 100) $ Scale tamTitulo tamTitulo $ Text ("SEU SCORE: " ++ show sc),
+      Color white $ Translate posXTitulo (posYTitulo - 200) $ Scale tamTitulo tamTitulo $ Text ("HIGHEST SCORE: " ++ show max),
       Color white $ Translate posXTitulo (posYTitulo - 350) $ Scale tamTitulo tamTitulo $ Text "Aperte Espaco para jogar novamente"
     ]
 
@@ -81,7 +80,10 @@ desenhaSplashScreen =
     ]
 
 desenhaScore :: Score -> Picture
-desenhaScore sc = Color white $ Translate 200 (-200) $ Scale 0.25 0.25 $ Text ("Score: " ++ show sc)
+desenhaScore sc = Pictures [score, hs]
+  where 
+    score = Color white $ Translate 150 (-200) $ Scale 0.25 0.25 $ Text ("Score: " ++ show (fst sc))
+    hs = Color white $ Translate 150 (-250) $ Scale 0.25 0.25 $ Text ("Record: " ++ show (snd sc))
 
 desenhaPlayer :: Player -> Picture
 desenhaPlayer (x, y, _) = color (makeColorI 0 177 255 255) $ translate x y $ rectangleSolid larguraPlayer alturaPlayer
@@ -121,7 +123,7 @@ desenhaMundo (player, bola, ps, status, score) =
   case status of
     Start -> desenhaSplashScreen
     Playing -> Pictures [playerPic, bolaPic, paredesPic, scorePic]
-    Lose -> desenhaTelaDerrota score
+    Lose -> desenhaTelaDerrota  score
     Win -> desenhaTelaVitoria score
   where
     playerPic = desenhaPlayer player
@@ -172,14 +174,16 @@ obtemIncrementoScore y = addScore
       | otherwise = 400
 
 atualizaScore :: Mundo -> Mundo -> Mundo
-atualizaScore m1@(_, _, ps1, _, _) m2@(p, b@(x, y, vx, vy), ps2, s, score) =  (p, b, ps2, s, scoreRes)
+atualizaScore m1@(_, _, ps1, _, _) m2@(p, b@(x, y, vx, vy), ps2, s, score) =  (p, b, ps2, s, (scoreRes, maxRes))
   where
+    (sc, max) = score
     diffBlocos = length ps1 - length ps2
     incremento = if diffBlocos > 0
                   then obtemIncrementoScore (y+25) * diffBlocos
                  else
                   0
-    scoreRes = score + incremento
+    scoreRes = sc + incremento
+    maxRes = if scoreRes > max then scoreRes else max
 
 
 {-
@@ -227,7 +231,7 @@ atualizaMundo dt (player, bola, paredes, s, score) = m4
 atualizaStatusGame :: Mundo -> Mundo
 atualizaStatusGame m@(p, b@(x, y, vx, vy), ps, s, sc) = mundoRes
   where
-    novoMundo = inicializaMundo
+    novoMundo = inicializaMundo $ snd sc
     mundoRes
       | s == Playing && null ps = (p, b, ps, Win, sc)
       | s == Playing && (y < -alturaTela/2 - 100) = (p, b, ps, Lose, sc)
@@ -241,7 +245,7 @@ inputHandler (EventKey (SpecialKey KeyLeft) Up _ _) ((x, y, v), b, ps, s, sc) = 
 inputHandler (EventKey (SpecialKey KeySpace) Up _ _) ((x, y, v), b, ps, s, sc) =
   case s of
     Playing -> ((x, y, 0), b, ps, s, sc)
-    _ -> inicializaMundo
+    _ -> inicializaMundo $ snd sc
 inputHandler (EventKey (Char 'a') Down _ _) ((x, y, v), b, ps, s, sc) = ((x, y, -velPlayer), b, ps, s, sc)
 inputHandler (EventKey (Char 'a') Up _ _) ((x, y, v), b, ps, s, sc) = ((x, y, 0), b, ps, s, sc)
 inputHandler (EventKey (Char 'd') Down _ _) ((x, y, v), b, ps, s, sc) = ((x, y, velPlayer), b, ps, s, sc)
