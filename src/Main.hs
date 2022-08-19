@@ -1,6 +1,8 @@
 module Main (main) where
 
+import System.IO
 import Graphics.Gloss.Interface.Pure.Game
+import System.Random (StdGen, newStdGen, randomR)
 
 larguraTela, alturaTela, larguraPlayer, alturaPlayer, larguraBola, larguraParede, alturaParede :: Float
 larguraTela = 800
@@ -10,8 +12,8 @@ alturaPlayer = 30
 larguraBola = 15
 larguraParede = 50
 alturaParede = 20
-velBola = 250
-velPlayer = 300
+velBola = 300
+velPlayer = 500
 
 type Player = (Float, Float, Float) -- X, Y, VEL
 
@@ -19,7 +21,9 @@ type Bola = (Float, Float, Float, Float) -- X, Y, vx, vy
 
 type Parede = (Float, Float) -- X, Y
 
-type Mundo = (Player, Bola, [Parede], Status)
+type Score = Int
+
+type Mundo = (Player, Bola, [Parede], Status, Score)
 
 data Status =
     Start
@@ -29,18 +33,19 @@ data Status =
   deriving (Eq)
 
 mundoStart :: Mundo
-mundoStart = ((0, 0, 0), (0, 0, 0, 0), [], Start)
+mundoStart = ((0, 0, 0), (0, 0, 0, 0), [], Start, 0)
 
 inicializaMundo :: Mundo
 inicializaMundo =
     (newPlayer,
     bola,
     paredes,
-    Playing)
+    Playing,
+    0)
   where
-    newPlayer = (-50, -alturaTela/2 + 50, 0)
+    newPlayer = (0, -alturaTela/2 + 30, 0)
     bola = (20, 0, -velBola, -velBola)
-    paredes = [(x * (larguraParede + 10), alturaTela/2 - 120 + (alturaParede + 5) * y) | x <- [-5 .. 5], y <- [-3 .. 3]]
+    paredes = [(x * (larguraParede + 10), alturaTela/2 - 120 + (alturaParede + 5) * y) | x <- [-6 .. 6], y <- [-3 .. 4]]
 
 
 tamTitulo, posXTitulo, posYTitulo :: Float
@@ -48,21 +53,21 @@ tamTitulo = 0.25
 posXTitulo = -350
 posYTitulo = alturaTela / 2 - 100
 
-desenhaTelaVitoria :: Picture
-desenhaTelaVitoria =
+desenhaTelaVitoria :: Int -> Picture
+desenhaTelaVitoria score =
   Pictures
-    [ Color white $ Translate posXTitulo posYTitulo $ Scale (tamTitulo * 2) (tamTitulo * 2) $ Text "YOU WIN!",
-      Color white $ Translate posXTitulo (posYTitulo - 100) $ Scale tamTitulo tamTitulo $ Text "SCORE: 123450 !!",
-      Color white $ Translate posXTitulo (posYTitulo - 200) $ Scale tamTitulo tamTitulo $ Text "HIGHEST SCORE: 99999999999999",
+    [ Color white $ Translate posXTitulo posYTitulo $ Scale (tamTitulo * 2) (tamTitulo * 2) $ Text "YOU VENCEU!",
+      Color white $ Translate posXTitulo (posYTitulo - 100) $ Scale tamTitulo tamTitulo $ Text ("SEU SCORE: " ++ show score),
+      --Color white $ Translate posXTitulo (posYTitulo - 200) $ Scale tamTitulo tamTitulo $ Text "HIGHEST SCORE: ",
       Color white $ Translate posXTitulo (posYTitulo - 350) $ Scale tamTitulo tamTitulo $ Text "Aperte Espaco para jogar novamente"
     ]
 
-desenhaTelaDerrota :: Picture
-desenhaTelaDerrota =
+desenhaTelaDerrota :: Int -> Picture
+desenhaTelaDerrota score =
   Pictures
-    [ Color white $ Translate posXTitulo posYTitulo $ Scale (tamTitulo * 2) (tamTitulo * 2) $ Text "YOU LOSE!",
-      Color white $ Translate posXTitulo (posYTitulo - 100) $ Scale tamTitulo tamTitulo $ Text "SCORE: 123450 !!",
-      Color white $ Translate posXTitulo (posYTitulo - 200) $ Scale tamTitulo tamTitulo $ Text "HIGHEST SCORE: 99999999999999",
+    [ Color white $ Translate posXTitulo posYTitulo $ Scale (tamTitulo * 2) (tamTitulo * 2) $ Text "VOCÊ PERDEU!",
+      Color white $ Translate posXTitulo (posYTitulo - 100) $ Scale tamTitulo tamTitulo $ Text ("SEU SCORE: " ++ show score),
+      --Color white $ Translate posXTitulo (posYTitulo - 200) $ Scale tamTitulo tamTitulo $ Text "HIGHEST SCORE: ",
       Color white $ Translate posXTitulo (posYTitulo - 350) $ Scale tamTitulo tamTitulo $ Text "Aperte Espaco para jogar novamente"
     ]
 
@@ -72,33 +77,57 @@ desenhaSplashScreen =
     [ Color white $ Translate (posXTitulo + 70) posYTitulo $ Scale (tamTitulo * 2) (tamTitulo * 2) $ Text "Haskell Breakout!",
       Color white $ Translate (posXTitulo + 200) (posYTitulo - 100) $ Scale tamTitulo tamTitulo $ Text "Controles:",
       Color white $ Translate posXTitulo (posYTitulo - 200) $ Scale tamTitulo tamTitulo $ Text "'A'/'S' e Esquerda/Direita movem o jogador",
-      Color white $ Translate posXTitulo (posYTitulo - 250) $ Scale tamTitulo tamTitulo $ Text "Espaco Atira",
       Color white $ Translate posXTitulo (posYTitulo - 350) $ Scale tamTitulo tamTitulo $ Text "Aperte Espaco para comecar"
     ]
 
+desenhaScore :: Score -> Picture
+desenhaScore sc = Color white $ Translate 200 (-200) $ Scale 0.25 0.25 $ Text ("Score: " ++ show sc)
+
 desenhaPlayer :: Player -> Picture
-desenhaPlayer (x, y, _) = color red $ translate x y $ rectangleSolid larguraPlayer alturaPlayer
+desenhaPlayer (x, y, _) = color (makeColorI 0 177 255 255) $ translate x y $ rectangleSolid larguraPlayer alturaPlayer
 
 desenhaBola :: Bola -> Picture
-desenhaBola (x, y, _, _) = color green $ translate x y $ circleSolid larguraBola
+desenhaBola (x, y, _, _) = color white $ translate x y $ circleSolid larguraBola
+
+clrDarkOrange, clrDarkYellow, clrDarkGreen, clrDarkRed :: Color
+clrDarkOrange = makeColorI 170 126 0 255
+clrDarkYellow = makeColorI 210 190 27 255
+clrDarkGreen = makeColorI 0 180 70 255
+clrDarkRed = makeColorI 180 0 0 255
+
+obtemIndiceBlocosPorAltura :: Float -> Integer
+obtemIndiceBlocosPorAltura y
+  | y > 250 = 4
+  | y > 200 = 3
+  | y > 150 = 2
+  | otherwise = 1
 
 desenhaParede :: Parede -> Picture
-desenhaParede (px, py) = color yellow $ translate px py $ rectangleSolid larguraParede alturaParede
+desenhaParede (px, py) = color color1 $ translate px py $ rectangleSolid larguraParede alturaParede
+  where
+    i = obtemIndiceBlocosPorAltura py
+    color1
+      | i == 1 = clrDarkGreen
+      | i == 2 = clrDarkYellow
+      | i == 3 = clrDarkOrange
+      | i == 4 = clrDarkRed
+      | otherwise = clrDarkRed
 
 desenhaParedes :: [Parede] -> Picture
 desenhaParedes ps = pictures $ map desenhaParede ps
 
 desenhaMundo :: Mundo -> Picture
-desenhaMundo (player, bola, ps, status) =
+desenhaMundo (player, bola, ps, status, score) =
   case status of
     Start -> desenhaSplashScreen
-    Playing -> Pictures [playerPic, bolaPic, paredesPic]
-    Lose -> desenhaTelaDerrota
-    Win -> desenhaTelaVitoria
+    Playing -> Pictures [playerPic, bolaPic, paredesPic, scorePic]
+    Lose -> desenhaTelaDerrota score
+    Win -> desenhaTelaVitoria score
   where
     playerPic = desenhaPlayer player
     bolaPic = desenhaBola bola
     paredesPic = desenhaParedes ps
+    scorePic = desenhaScore score
 
 atualizaPosicaoPlayer :: Float -> Player -> Player
 atualizaPosicaoPlayer dt (x, y, vel) = (xres, y, vel)
@@ -131,68 +160,98 @@ colidiuParede (xp, yp) (xb, yb) =
 filtraParedesColisao :: (Float, Float) -> [Parede] -> [Parede]
 filtraParedesColisao (xb, yb) = filter (not . colidiuParede (xb, yb))
 
+obtemIncrementoScore :: Float -> Int
+obtemIncrementoScore y = addScore
+  where
+    i = obtemIndiceBlocosPorAltura y
+    addScore
+      | i == 1 = 100
+      | i == 2 = 200
+      | i == 3 = 300
+      | i == 4 = 400
+      | otherwise = 400
+
+atualizaScore :: Mundo -> Mundo -> Mundo
+atualizaScore m1@(_, _, ps1, _, _) m2@(p, b@(x, y, vx, vy), ps2, s, score) =  (p, b, ps2, s, scoreRes)
+  where
+    diffBlocos = length ps1 - length ps2
+    incremento = if diffBlocos > 0
+                  then obtemIncrementoScore (y+25) * diffBlocos
+                 else
+                  0
+    scoreRes = score + incremento
+
+
+{-
+  Recebe o mundo do jogo e atualiza a posição da bola
+  Verifica se a bola colidiu com o player e atualiza suas posições de acordo
+  Verifica se a bola atingiu algum bloco, deletando o bloco e incrementando a pontuação
+-}
 atualizaPosicaoBola :: Float -> Mundo -> Mundo
-atualizaPosicaoBola dt (p@(xp, yp, _), (x, y, vx, vy), ps, s) = (p, (x1, yRes, vxRes, vyRes), paredesRes, s)
+atualizaPosicaoBola dt (p@(xp, yp, _), (x, y, vx, vy), ps, s, score) = (p, (x1, yRes, vxRes, vyRes), paredesRes, s, score)
   where
     dx = vx * dt
     dy = vy * dt
     x1 = x + dx
     y1 = y + dy
-    parede = head ps
-    (paredeX, paredeY) = parede
     clPlayer = colidiuPlayer (xp, yp) (x1, y1)
-    clParede = colidiuParede (paredeX, paredeY) (x1, y1)
+    paredesRes = filtraParedesColisao (x1, y1) ps
+    clParede = length paredesRes < length ps
     clRes = clPlayer || clParede
+    velBolaIncremento = if clParede then 2 else 0
     vxRes
-      | (x1 > larguraTela / 2 - larguraBola/2) || (clRes && vx < 0) = -velBola
-      | (x1 < -larguraTela / 2 + larguraBola/2) || (clRes && vx > 0) = velBola
+      | (x1 > larguraTela / 2 - larguraBola/2) || (clRes && vx < 0) = - velBola - velBolaIncremento
+      | (x1 < -larguraTela / 2 + larguraBola/2) || (clRes && vx > 0) = velBola + velBolaIncremento
       | otherwise = vx
     vyRes
-      | y1 > alturaTela / 2 - larguraBola/2 = -velBola
-      | clRes && vy > 0 = -velBola
-      | clRes && vy < 0 = velBola
+      | (y1 > alturaTela / 2 - larguraBola/2) || clRes && vy > 0  = -velBola -velBolaIncremento
+      | clRes && vy < 0 = velBola + velBolaIncremento
       | otherwise = vy
     yRes
       | clParede && vy > 0 = y1 - 5
       | clParede && vy < 0 = y1 + 5
       | otherwise = y1
-    paredesRes = filtraParedesColisao (x1, y1) ps
 
 atualizaMundo :: Float -> Mundo -> Mundo
-atualizaMundo dt (player, bola, paredes, s) = m3
+atualizaMundo dt (player, bola, paredes, s, score) = m4
   where
-    m1 = (atualizaPosicaoPlayer dt player, bola, paredes, s)
+    m1 = (atualizaPosicaoPlayer dt player, bola, paredes, s, score)
     m2 = atualizaPosicaoBola dt m1
     m3 = atualizaStatusGame m2
+    m4 = atualizaScore m1 m3
 
+{-
+  Recebe o mundo do jogo e atualiza ele a depender do Status
+  , mudar para a tela de vitória caso acabem os inimigos
+-}
 atualizaStatusGame :: Mundo -> Mundo
-atualizaStatusGame (p, b@(x, y, vx, vy), ps, s) = mundoRes
+atualizaStatusGame m@(p, b@(x, y, vx, vy), ps, s, sc) = mundoRes
   where
     novoMundo = inicializaMundo
     mundoRes
-      | s == Playing && null ps = (p, b, ps, Win)
-      | s == Playing && (y < -alturaTela/2 - 100) = (p, b, ps, Lose)
-      | otherwise = (p, b, ps, s)
+      | s == Playing && null ps = (p, b, ps, Win, sc)
+      | s == Playing && (y < -alturaTela/2 - 100) = (p, b, ps, Lose, sc)
+      | otherwise = m
 
 inputHandler :: Event -> Mundo -> Mundo
-inputHandler (EventKey (SpecialKey KeyRight) Down _ _) ((x, y, v), b, ps, s) = ((x, y, velPlayer), b, ps, s)
-inputHandler (EventKey (SpecialKey KeyRight) Up _ _) ((x, y, v), b, ps, s) = ((x, y, 0), b, ps, s)
-inputHandler (EventKey (SpecialKey KeyLeft) Down _ _) ((x, y, v), b, ps, s) = ((x, y, -velPlayer), b, ps, s)
-inputHandler (EventKey (SpecialKey KeyLeft) Up _ _) ((x, y, v), b, ps, s) = ((x, y, 0), b, ps, s)
-inputHandler (EventKey (SpecialKey KeySpace) Up _ _) ((x, y, v), b, ps, s) =
+inputHandler (EventKey (SpecialKey KeyRight) Down _ _) ((x, y, v), b, ps, s, sc) = ((x, y, velPlayer), b, ps, s, sc)
+inputHandler (EventKey (SpecialKey KeyRight) Up _ _) ((x, y, v), b, ps, s, sc) = ((x, y, 0), b, ps, s, sc)
+inputHandler (EventKey (SpecialKey KeyLeft) Down _ _) ((x, y, v), b, ps, s, sc) = ((x, y, -velPlayer), b, ps, s, sc)
+inputHandler (EventKey (SpecialKey KeyLeft) Up _ _) ((x, y, v), b, ps, s, sc) = ((x, y, 0), b, ps, s, sc)
+inputHandler (EventKey (SpecialKey KeySpace) Up _ _) ((x, y, v), b, ps, s, sc) =
   case s of
-    Start -> inicializaMundo
-    Lose -> inicializaMundo
-    Win -> inicializaMundo
-    _ -> ((x, y, 0), b, ps, s)
-inputHandler (EventKey (Char 'a') Down _ _) ((x, y, v), b, ps, s) = ((x, y, velPlayer), b, ps, s)
-inputHandler (EventKey (Char 'a') Up _ _) ((x, y, v), b, ps, s) = ((x, y, 0), b, ps, s)
-inputHandler (EventKey (Char 'd') Down _ _) ((x, y, v), b, ps, s) = ((x, y, -velPlayer), b, ps, s)
-inputHandler (EventKey (Char 'd') Up _ _) ((x, y, v), b, ps, s) = ((x, y, 0), b, ps, s)
+    Playing -> ((x, y, 0), b, ps, s, sc)
+    _ -> inicializaMundo
+inputHandler (EventKey (Char 'a') Down _ _) ((x, y, v), b, ps, s, sc) = ((x, y, -velPlayer), b, ps, s, sc)
+inputHandler (EventKey (Char 'a') Up _ _) ((x, y, v), b, ps, s, sc) = ((x, y, 0), b, ps, s, sc)
+inputHandler (EventKey (Char 'd') Down _ _) ((x, y, v), b, ps, s, sc) = ((x, y, velPlayer), b, ps, s, sc)
+inputHandler (EventKey (Char 'd') Up _ _) ((x, y, v), b, ps, s, sc) = ((x, y, 0), b, ps, s, sc)
 inputHandler _ m = m
 
 main :: IO ()
 main = do
+  rg <- newStdGen
+
   play
     janela
     black
