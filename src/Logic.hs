@@ -1,6 +1,19 @@
 module Logic where
 
 import Graphics.Gloss.Interface.Pure.Game
+import qualified SDL
+import qualified SDL.Mixer as Mix
+
+data Sounds = Sounds
+  { frPdlBounce :: Mix.Chunk    -- ^ Sound of ball hitting paddle front.
+  , sdPdlBounce :: Mix.Chunk    -- ^ Sound of ball hitting paddle top/bottom.
+  , topWallBounce :: Mix.Chunk  -- ^ Sound of ball hitting top wall.
+  , btmWallBounce :: Mix.Chunk  -- ^ Sound of ball hitting bottom wall.
+  , begin :: Mix.Chunk          -- ^ Sound when play begins.
+  , bkgndMusic :: Mix.Chunk     -- ^ Background music.
+  , defeat :: Mix.Chunk         -- ^ Game over (defeat) sound.
+  , victory :: Mix.Chunk        -- ^ Game over (victory) sound.
+  } deriving (Show, Eq)
 
 larguraTela, alturaTela, larguraPlayer, alturaPlayer, larguraBola, larguraParede, alturaParede :: Float
 larguraTela = 800
@@ -20,7 +33,7 @@ type Parede = (Float, Float) -- X, Y
 
 type Score = (Int, Int) -- Score, Highest
 
-type Mundo = (Player, Bola, [Parede], Status, Score)
+type Mundo = (Player, Bola, [Parede], Status, Score, Sounds)
 
 data Status =
     Start
@@ -29,16 +42,17 @@ data Status =
   | Win
   deriving (Eq)
 
-mundoStart :: Mundo
-mundoStart = ((0, 0, 0), (0, 0, 0, 0), [], Start, (0, 0))
+mundoStart :: Sounds -> Mundo
+mundoStart snd = ((0, 0, 0), (0, 0, 0, 0), [], Start, (0, 0), snd)
 
-inicializaMundo :: Int -> Mundo
-inicializaMundo maxSc =
+inicializaMundo :: Int -> Sounds -> Mundo
+inicializaMundo maxSc sounds =
     (newPlayer,
     bola,
     paredes,
     Playing,
-    (0, maxSc))
+    (0, maxSc),
+    sounds)
   where
     newPlayer = (0, -alturaTela/2 + 30, 0)
     bola = (20, 0, -velBola, -velBola)
@@ -94,7 +108,7 @@ obtemIncrementoScore y = addScore
       | otherwise = 400
 
 atualizaScore :: Mundo -> Mundo -> Mundo
-atualizaScore m1@(_, _, ps1, _, _) m2@(p, b@(x, y, vx, vy), ps2, s, score) =  (p, b, ps2, s, (scoreRes, maxRes))
+atualizaScore m1@(_, _, ps1, _, _m, _) m2@(p, b@(x, y, vx, vy), ps2, s, score, snd2) =  (p, b, ps2, s, (scoreRes, maxRes), snd2)
   where
     (sc, max) = score
     diffBlocos = length ps1 - length ps2
@@ -112,7 +126,7 @@ atualizaScore m1@(_, _, ps1, _, _) m2@(p, b@(x, y, vx, vy), ps2, s, score) =  (p
   Verifica se a bola atingiu algum bloco, deletando o bloco e incrementando a pontuação
 -}
 atualizaPosicaoBola :: Float -> Mundo -> Mundo
-atualizaPosicaoBola dt (p@(xp, yp, _), (x, y, vx, vy), ps, s, score) = (p, (x1, yRes, vxRes, vyRes), paredesRes, s, score)
+atualizaPosicaoBola dt (p@(xp, yp, _), (x, y, vx, vy), ps, s, score, sounds) = (p, (x1, yRes, vxRes, vyRes), paredesRes, s, score, sounds)
   where
     dx = vx * dt
     dy = vy * dt
@@ -136,10 +150,10 @@ atualizaPosicaoBola dt (p@(xp, yp, _), (x, y, vx, vy), ps, s, score) = (p, (x1, 
       | clParede && vy < 0 = y1 + 5
       | otherwise = y1
 
-atualizaMundo :: Float -> Mundo -> Mundo
-atualizaMundo dt (player, bola, paredes, s, score) = m4
+atualizaMundo :: Float -> Mundo -> IO Mundo
+atualizaMundo dt (player, bola, paredes, s, score, sounds) = return m4
   where
-    m1 = (atualizaPosicaoPlayer dt player, bola, paredes, s, score)
+    m1 = (atualizaPosicaoPlayer dt player, bola, paredes, s, score, sounds)
     m2 = atualizaPosicaoBola dt m1
     m3 = atualizaStatusGame m2
     m4 = atualizaScore m1 m3
@@ -149,10 +163,10 @@ atualizaMundo dt (player, bola, paredes, s, score) = m4
   , mudar para a tela de vitória caso acabem os inimigos
 -}
 atualizaStatusGame :: Mundo -> Mundo
-atualizaStatusGame m@(p, b@(x, y, vx, vy), ps, s, sc) = mundoRes
+atualizaStatusGame m@(p, b@(x, y, vx, vy), ps, s, sc, sounds) = mundoRes
   where
-    novoMundo = inicializaMundo $ snd sc
+    novoMundo = inicializaMundo (snd sc) sounds
     mundoRes
-      | s == Playing && null ps = (p, b, ps, Win, sc)
-      | s == Playing && (y < -alturaTela/2 - 100) = (p, b, ps, Lose, sc)
+      | s == Playing && null ps = (p, b, ps, Win, sc, sounds)
+      | s == Playing && (y < -alturaTela/2 - 100) = (p, b, ps, Lose, sc, sounds)
       | otherwise = m
