@@ -1,9 +1,4 @@
 1. Criar Sistema de Pontuação -- done
 2. Mostrar Pontuação na Tela -- done
 3. Incluir níveis diferentes de pontuação a depender de qual bloco você acertou, os mais atrás dão mais pontos -- done
-4.
-5. Incluir efeitos sonoros quando a bola bater no player ou nos blocos
-6. Incluir uma imagem de background
-7. Adicionar persistencia de dados, salvando o maior score num arquivo
-8. Fazer uma mescla de space invaders colocando tiros que o jogador tem que desviar
-9. Adicionar versão web?
+5. Incluir efeitos sonoros quando a bola bater no player ou nos blocos -- done

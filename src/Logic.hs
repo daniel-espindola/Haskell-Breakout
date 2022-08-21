@@ -5,14 +5,11 @@ import qualified SDL
 import qualified SDL.Mixer as Mix
 
 data Sounds = Sounds
-  { frPdlBounce :: Mix.Chunk    -- ^ Sound of ball hitting paddle front.
-  , sdPdlBounce :: Mix.Chunk    -- ^ Sound of ball hitting paddle top/bottom.
-  , topWallBounce :: Mix.Chunk  -- ^ Sound of ball hitting top wall.
-  , btmWallBounce :: Mix.Chunk  -- ^ Sound of ball hitting bottom wall.
-  , begin :: Mix.Chunk          -- ^ Sound when play begins.
-  , bkgndMusic :: Mix.Chunk     -- ^ Background music.
-  , defeat :: Mix.Chunk         -- ^ Game over (defeat) sound.
-  , victory :: Mix.Chunk        -- ^ Game over (victory) sound.
+  { bounce :: Mix.Chunk
+  , begin :: Mix.Chunk
+  , bkgndMusic :: Mix.Chunk
+  , defeat :: Mix.Chunk         
+  , victory :: Mix.Chunk        
   } deriving (Show, Eq)
 
 larguraTela, alturaTela, larguraPlayer, alturaPlayer, larguraBola, larguraParede, alturaParede :: Float
@@ -79,7 +76,7 @@ colidiuPlayer :: (Float, Float) -> (Float, Float) -> Bool
 colidiuPlayer (xp, yp) (xb, yb) =
   dentroX && dentroY
   where
-    comecoYPlayer = yp + alturaPlayer/2 + larguraBola
+    comecoYPlayer = yp + alturaPlayer/2 + larguraBola/2
     fimYPlayer = yp - alturaPlayer/2
     dentroX = xb > xp - larguraPlayer / 2 && xb < xp + larguraPlayer / 2
     dentroY = yb < comecoYPlayer && yb > fimYPlayer
@@ -148,15 +145,29 @@ atualizaPosicaoBola dt (p@(xp, yp, _), (x, y, vx, vy), ps, s, score, sounds) = (
     yRes
       | clParede && vy > 0 = y1 - 5
       | clParede && vy < 0 = y1 + 5
+      | clPlayer = yp + alturaPlayer + 2
       | otherwise = y1
 
 atualizaMundo :: Float -> Mundo -> IO Mundo
-atualizaMundo dt (player, bola, paredes, s, score, sounds) = return m4
+atualizaMundo dt (player, b@(x, y, vx, vy), paredes, s, score, sounds) 
+    | s /= s2 && s2 == Win = do
+      Mix.halt Mix.AllChannels
+      Mix.play (victory sounds)
+      return m4
+    | vy /= vy2 = do
+      Mix.play (bounce sounds)
+      return m4
+    | s /= s2 && s2 == Lose = do
+      Mix.halt Mix.AllChannels
+      Mix.play (defeat sounds)
+      return m4
+    | otherwise = return m4
   where
-    m1 = (atualizaPosicaoPlayer dt player, bola, paredes, s, score, sounds)
+    m1 = (atualizaPosicaoPlayer dt player, b, paredes, s, score, sounds)
     m2 = atualizaPosicaoBola dt m1
     m3 = atualizaStatusGame m2
     m4 = atualizaScore m1 m3
+    (p, b2@(_, _, vx2, vy2), ps, s2, sc, snds) = m4
 
 {-
   Recebe o mundo do jogo e atualiza ele a depender do Status
@@ -167,6 +178,6 @@ atualizaStatusGame m@(p, b@(x, y, vx, vy), ps, s, sc, sounds) = mundoRes
   where
     novoMundo = inicializaMundo (snd sc) sounds
     mundoRes
-      | s == Playing && null ps = (p, b, ps, Win, sc, sounds)
+      | s == Playing && null ps  = (p, b, ps, Win, sc, sounds)
       | s == Playing && (y < -alturaTela/2 - 100) = (p, b, ps, Lose, sc, sounds)
       | otherwise = m

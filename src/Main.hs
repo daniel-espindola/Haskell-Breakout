@@ -94,7 +94,11 @@ inputHandler (EventKey (SpecialKey KeyLeft) Up _ _) ((x, y, v), b, ps, s, sc, so
 inputHandler (EventKey (SpecialKey KeySpace) Up _ _) ((x, y, v), b, ps, s, sc, sound) =
   case s of
     Playing -> return ((x, y, 0), b, ps, s, sc, sound)
-    _ -> return $ inicializaMundo (snd sc) sound
+    _ -> do
+      Mix.halt Mix.AllChannels
+      Mix.play $ begin sound
+      Mix.play $ bkgndMusic sound
+      return $ inicializaMundo (snd sc) sound
 inputHandler (EventKey (Char 'a') Down _ _) ((x, y, v), b, ps, s, sc, sound) = return ((x, y, -velPlayer), b, ps, s, sc, sound)
 inputHandler (EventKey (Char 'a') Up _ _) ((x, y, v), b, ps, s, sc, sound) = return ((x, y, 0), b, ps, s, sc, sound)
 inputHandler (EventKey (Char 'd') Down _ _) ((x, y, v), b, ps, s, sc, sound) = return ((x, y, velPlayer), b, ps, s, sc, sound)
@@ -103,15 +107,12 @@ inputHandler _ m = return m
 
 loadSounds :: IO Sounds
 loadSounds = do
-  pdlFr <- Mix.load "audio/paddle-bounce-front.wav"
-  pdlSd <- Mix.load "audio/paddle-bounce-side.wav"
-  topWall <- Mix.load "audio/wall-bounce-top.wav"
-  btmWall <- Mix.load "audio/wall-bounce-bottom.wav"
+  bounce <- Mix.load "audio/bounce.wav"
   begin <- Mix.load "audio/begin-play.ogg"
   music <- Mix.load "audio/background-music.ogg"
   defeat <- Mix.load "audio/defeat.wav"
   victory <- Mix.load "audio/victory.ogg"
-  return $ Sounds pdlFr pdlSd topWall btmWall begin music defeat victory
+  return $ Sounds bounce begin music defeat victory
 
 main :: IO ()
 main = do
@@ -119,8 +120,6 @@ main = do
   let chunkSz = 256
     in Mix.withAudio Mix.defaultAudio chunkSz $ do
         snds <- loadSounds
-        Mix.play $ begin snds
-        Mix.play $ bkgndMusic snds
         playIO 
           janela 
           black 
